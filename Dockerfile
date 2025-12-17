@@ -1,33 +1,25 @@
-# Use the official R-base image
 FROM rocker/r-ver:4.3.1
 
-# 1. System dependencies mit zusätzlichen Fixes für sf/giscoR
+# 1. System-Abhängigkeiten (schlank gehalten)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libudunits2-dev \
-    libgdal-dev \
-    libgeos-dev \
-    libproj-dev \
-    libssl-dev \
-    libcurl4-openssl-dev \
-    libxml2-dev \
-    libfontconfig1-dev \
-    libcairo2-dev \
-    libxt-dev \
-    cmake \
-    && apt-get clean \
+    libudunits2-dev libgdal-dev libgeos-dev libproj-dev \
+    libssl-dev libcurl4-openssl-dev libxml2-dev \
+    libfontconfig1-dev libcairo2-dev libxt-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . /app
 
-# 2. R-Pakete einzeln oder mit strikter Fehlerprüfung installieren
-# Wir installieren 'sf' zuerst separat, um sicherzugehen, dass es klappt.
-RUN R -e "install.packages('remotes', repos='https://cloud.r-project.org')" && \
-    R -e "install.packages('sf', repos='https://cloud.r-project.org', dependencies=TRUE)" && \
-    R -e "install.packages(c('shiny', 'shinyWidgets', 'dplyr', 'ggplot2', 'ggiraph', 'glue', 'readxl', 'tidyverse', 'giscoR', 'janitor', 'bslib'), repos='https://cloud.r-project.org')"
+# 2. Pakete über Posit Package Manager installieren (VIEL SCHNELLER)
+# Wir erzwingen den Abbruch des Builds, falls ein Paket fehlschlägt.
+RUN R -e "options(repos = c(CRAN = 'https://packagemanager.posit.co/cran/__linux__/jammy/latest')); \
+    install.packages('remotes'); \
+    pkgs <- c('shiny', 'shinyWidgets', 'sf', 'dplyr', 'ggplot2', 'ggiraph', 'glue', 'readxl', 'tidyverse', 'giscoR', 'janitor', 'bslib'); \
+    install.packages(pkgs); \
+    if (!all(pkgs %in% installed.packages()[, 'Package'])) stop('Fehler: Einige Pakete wurden nicht installiert!')"
 
-# Prüfen, ob sf wirklich geladen werden kann (Build schlägt fehl, wenn nicht)
-RUN R -e "library(sf)"
+# 3. Sicherheitscheck: Lässt sich das Tidyverse wirklich laden?
+RUN R -e "library(sf); library(tidyverse); library(giscoR)"
 
 EXPOSE 3838
 
